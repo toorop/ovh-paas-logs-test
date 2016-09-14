@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"crypto/tls"
 	"log"
+	"math/rand"
 	"os"
+	"sync"
 	"time"
+
+	"github.com/satori/go.uuid"
 
 	"zombiezen.com/go/capnproto2"
 )
@@ -34,10 +38,100 @@ func send(b []byte) error {
 		return err
 	}
 
-	n, err := conn.Write(b)
+	_, err = conn.Write(b)
 
-	log.Println(err, " - ", n)
+	//log.Println(err, " - ", n)
 	return err
+}
+
+func GetRandString(strlen int) string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	result := make([]byte, strlen)
+	for i := 0; i < strlen; i++ {
+		result[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(result)
+}
+
+func sendRandomLog() (err error) {
+	msg, seg, err := capnp.NewMessage(capnp.SingleSegment(nil))
+	if err != nil {
+		return
+	}
+
+	record, err := NewRootRecord(seg)
+	if err != nil {
+		return
+	}
+
+	record.SetTs(float64(time.Now().Unix()))
+	err = record.SetHostname("home")
+	if err != nil {
+		return
+	}
+	record.SetFacility(5)
+	record.SetSeverity(4)
+	err = record.SetAppname("MyApp")
+	if err != nil {
+		return
+	}
+	err = record.SetProcid("procid")
+	if err != nil {
+		return
+	}
+	err = record.SetMsgid(uuid.NewV4().String())
+	if err != nil {
+		return
+	}
+	err = record.SetMsg("message: " + GetRandString(10))
+	if err != nil {
+		return
+	}
+	err = record.SetFullMsg("full message: " + GetRandString(50))
+	if err != nil {
+		return
+	}
+	err = record.SetSdId(uuid.NewV4().String())
+	if err != nil {
+		return
+	}
+	// pairs 4 X-OVH-TOKEN
+	pairList, err := NewPair_List(seg, 1)
+	if err != nil {
+		return
+	}
+
+	pair, err := NewPair(seg)
+	if err != nil {
+		return
+	}
+
+	err = pair.SetKey("X-OVH-TOKEN")
+	if err != nil {
+		return
+	}
+	err = pair.Value().SetString(ovhToken)
+	if err != nil {
+		return
+	}
+	err = pairList.Set(0, pair)
+	if err != nil {
+		return
+	}
+	err = record.SetPairs(pairList)
+	if err != nil {
+		return
+	}
+
+	// encode
+	b := bytes.NewBuffer([]byte{})
+	if err = capnp.NewEncoder(b).Encode(msg); err != nil {
+		return err
+	}
+
+	return send(b.Bytes())
+
 }
 
 func init() {
@@ -48,40 +142,18 @@ func init() {
 }
 
 func main() {
-	msg, seg, err := capnp.NewMessage(capnp.SingleSegment(nil))
-	if err != nil {
-		panic(err)
+	var wg sync.WaitGroup
+
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := sendRandomLog(); err != nil {
+				log.Println(i, err)
+			}
+		}()
 	}
-
-	record, err := NewRootRecord(seg)
-	handleERR(err)
-
-	record.SetTs(float64(time.Now().Unix()))
-	handleERR(record.SetHostname("home"))
-	record.SetFacility(5)
-	record.SetSeverity(4)
-	handleERR(record.SetAppname("MyApp"))
-	handleERR(record.SetProcid("procid"))
-	handleERR(record.SetMsgid("msgid"))
-	handleERR(record.SetMsg("message"))
-	handleERR(record.SetFullMsg("full message"))
-	handleERR(record.SetSdId("ID"))
-
-	// pairs 4 X-OVH-TOKEN
-	pairList, err := NewPair_List(seg, 1)
-	handleERR(err)
-	pair, err := NewPair(seg)
-	handleERR(err)
-	handleERR(pair.SetKey("X-OVH-TOKEN"))
-	handleERR(pair.Value().SetString(ovhToken))
-	handleERR(pairList.Set(0, pair))
-	handleERR(record.SetPairs(pairList))
-
-	// encode
-	b := bytes.NewBuffer([]byte{})
-	handleERR(capnp.NewEncoder(b).Encode(msg))
-
-	handleERR(send(b.Bytes()))
+	wg.Wait()
 
 	// test decode
 	/*decMsg, err := capnp.NewDecoder(b).Decode()
