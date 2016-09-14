@@ -49,7 +49,7 @@ func main() {
 		panic(err)
 	}
 
-	record, err := NewRecord(seg)
+	record, err := NewRootRecord(seg)
 	handleERR(err)
 
 	record.SetTs(float64(time.Now().Unix()))
@@ -63,10 +63,9 @@ func main() {
 	handleERR(record.SetFullMsg("full message"))
 	handleERR(record.SetSdId("ID"))
 
-	// pairs
+	// pairs 4 X-OVH-TOKEN
 	pairList, err := NewPair_List(seg, 1)
 	handleERR(err)
-
 	pair, err := NewPair(seg)
 	handleERR(err)
 	handleERR(pair.SetKey("X-OVH-TOKEN"))
@@ -74,10 +73,19 @@ func main() {
 	handleERR(pairList.Set(0, pair))
 	handleERR(record.SetPairs(pairList))
 
-	// serialize
+	// encode
 	b := bytes.NewBuffer([]byte{})
 	handleERR(capnp.NewEncoder(b).Encode(msg))
 
 	handleERR(send(b.Bytes()))
+
+	// decode
+	/*decMsg, err := capnp.NewDecoder(b).Decode()
+	handleERR(err)
+	record2, err := ReadRootRecord(decMsg)
+	handleERR(err)
+	fullMsg, err := record2.Appname()
+	handleERR(err)
+	log.Println(fullMsg)*/
 
 }
