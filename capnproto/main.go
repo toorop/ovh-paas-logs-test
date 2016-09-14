@@ -79,13 +79,15 @@ func main() {
 
 	handleERR(send(b.Bytes()))
 
-	// decode
+	// test decode
 	/*decMsg, err := capnp.NewDecoder(b).Decode()
 	handleERR(err)
 	record2, err := ReadRootRecord(decMsg)
 	handleERR(err)
-	fullMsg, err := record2.Appname()
+	pairs, err := record2.Pairs()
 	handleERR(err)
-	log.Println(fullMsg)*/
-
+	ovhToken, err := pairs.At(0).Value().String()
+	handleERR(err)
+	log.Println(string(ovhToken))
+	*/
 }
