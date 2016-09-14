@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"log"
-	"net"
 	"os"
 	"time"
 
@@ -20,12 +20,16 @@ func handleERR(err error) {
 
 // Send msg to RA
 func send(b []byte) error {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", "laas.runabove.com:2204")
+	/*tcpAddr, err := net.ResolveTCPAddr("tcp", "laas.runabove.com:2204")
 	if err != nil {
 		return err
-	}
+	}*/
 
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	// TLS
+	conf := &tls.Config{}
+	conn, err := tls.Dial("tcp", "laas.runabove.com:12204", conf)
+	// no TLS
+	//conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		return err
 	}
